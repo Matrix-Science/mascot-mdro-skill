@@ -1,0 +1,16 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+nul
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Archives / build artefacts
+*.zip
+*.tar.gz
+
+# Vendored SDK headers (if the workspace happens to sit alongside the skill)
+SDK/
