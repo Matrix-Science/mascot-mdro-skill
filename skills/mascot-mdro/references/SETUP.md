@@ -74,6 +74,32 @@ test -f "$INSTALL/MascotDistiller.exe" && \
   echo "OK: $INSTALL"
 ```
 
+### 3d. Check the version — 2.8 or later required
+
+An install that passes 3c can still be too old. This skill targets **Mascot Distiller 2.8 and up**; below that, enum values and interface versions differ and the examples will not reliably work.
+
+Read the file version of the executable (works without COM, and before any Python is set up):
+
+```powershell
+(Get-Item "$env:ProgramFiles\Matrix Science\Mascot Distiller\MascotDistiller.exe").VersionInfo.ProductVersion
+# e.g. 2.9.242.9
+```
+
+Or ask the COM engine itself, which is the same number the SDK reports:
+
+```python
+import win32com.client
+version = tuple(win32com.client.Dispatch("MDRO.Distiller").Version)   # (2, 9, 242, 0)
+assert version[:2] >= (2, 8), f"Distiller {version[0]}.{version[1]} is too old — 2.8+ required"
+```
+
+`Version` is a **property** returning a `(major, minor, build, revision)` tuple — `distiller.Version`, not `distiller.Version()`. Compare the tuple, not a string (`"2.10" < "2.8"` is true as text and wrong as a version).
+
+If the install is older than 2.8, say so and stop rather than working around it:
+
+- Users who already hold a **Mascot Distiller licence can update to 2.8 free of charge** — the 2.8 update is currently free.
+- **3.0 and above is a separate licence question** — point them at Matrix Science directly: https://www.matrixscience.com/distiller.html
+
 ---
 
 ## 4. Probe defaults — Workspace
@@ -126,11 +152,14 @@ type: reference
 
 - `<WORKSPACE>` = `/absolute/path/to/Mascot Distiller report building`
 - `<DISTILLER_INSTALL>` = `C:\Program Files\Matrix Science\Mascot Distiller`
+- Distiller version = `2.9.242.9` (meets the 2.8+ requirement)
 
 Verified YYYY-MM-DD by checking that `<WORKSPACE>` contains
 `reports/`, `dev-reports/`, `msparser/`, `scripts/` and that `<DISTILLER_INSTALL>`
 contains `MascotDistiller.exe` and `reports\`.
 ```
+
+Recording the version means later sessions can skip the check — but re-check if the user mentions upgrading or reinstalling Distiller.
 
 Then add to `MEMORY.md`:
 

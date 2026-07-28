@@ -8,16 +8,19 @@ description: Drive the Mascot Distiller SDK (MDRO) — the COM API for raw vendo
 Script the Mascot Distiller engine through its COM API to process raw vendor data — open files, detect peaks, generate TICs and spectra, export peak lists.
 
 > **Licence**: the Mascot Distiller SDK is a **paid product**, licensed separately from the base Mascot Distiller application. Code that calls `MDRO.*` ProgIDs will only run on a machine with an active SDK licence. Confirm the target users are licensed before building anything that depends on MDRO — otherwise fall back to msparser-only (`mascot-distiller` skill).
+>
+> **Version**: this skill targets **Mascot Distiller 2.8 and later**. Check the version before writing MDRO code — see [Version requirement](#version-requirement).
 
 ## Contents
 
 1. [When to use this skill](#when-to-use-this-skill)
-2. [First-time setup](#first-time-setup)
-3. [Accessing MDRO from Python](#accessing-mdro-from-python)
-4. [Peak-list workflow](#peak-list-workflow)
-5. [Other workflows](#other-workflows)
-6. [Gotchas](#gotchas)
-7. [Reference files](#reference-files)
+2. [Version requirement](#version-requirement)
+3. [First-time setup](#first-time-setup)
+4. [Accessing MDRO from Python](#accessing-mdro-from-python)
+5. [Peak-list workflow](#peak-list-workflow)
+6. [Other workflows](#other-workflows)
+7. [Gotchas](#gotchas)
+8. [Reference files](#reference-files)
 
 ---
 
@@ -33,6 +36,45 @@ Script the Mascot Distiller engine through its COM API to process raw vendor dat
 | Build a custom Distiller report (wizard XML + Python) that Distiller runs after a search | `mascot-distiller` skill |
 
 The two SDKs are independent. A custom report can legitimately use both — MDRO to reach back to raw scans, `msparser` for the search results — but the APIs do not share objects.
+
+---
+
+## Version requirement
+
+**Mascot Distiller 2.8 or later is required.** Everything in this skill — ProgIDs, enum values, the versioned interfaces the late-binding examples rely on — is written against 2.8+. On older installs the same code may raise `com_error`, silently pick up a different enum value, or be missing methods entirely.
+
+Check the version **before** writing or running MDRO code, and stop if it's below 2.8:
+
+```python
+import win32com.client
+
+MIN_VERSION = (2, 8)
+
+distiller = win32com.client.Dispatch("MDRO.Distiller")
+version = tuple(distiller.Version)      # property, not a method: (major, minor, build, revision)
+
+if version[:2] < MIN_VERSION:
+    raise RuntimeError(
+        f"Mascot Distiller {version[0]}.{version[1]} detected — this workflow needs 2.8 or later."
+    )
+```
+
+Compare as a **tuple of ints**, never as a string: `"2.10" < "2.8"` is true as text but wrong as a version.
+
+Without COM (e.g. checking a machine before installing anything), read the file version of the executable instead:
+
+```powershell
+(Get-Item "$env:ProgramFiles\Matrix Science\Mascot Distiller\MascotDistiller.exe").VersionInfo.ProductVersion
+```
+
+Both report the same release — a 2.9 install gives `Version == (2, 9, 242, 0)` and `ProductVersion == "2.9.242.9"`.
+
+### What to tell a user running an older version
+
+- **Anyone with a Mascot Distiller licence can update to 2.8 free of charge** — that update is currently free, so an out-of-date 2.x install is not a reason to abandon the work.
+- **Updating to 3.0 or later is a separate licence matter** — tell the user to contact Matrix Science directly (https://www.matrixscience.com/distiller.html).
+
+Report the detected version and the relevant one of the two lines above; don't attempt to work around a pre-2.8 install by guessing older enum values or interfaces.
 
 ---
 
@@ -58,10 +100,11 @@ Resolve them in this order (full commands in [references/SETUP.md](references/SE
 ```python
 import win32com.client
 d = win32com.client.Dispatch("MDRO.Distiller")
-print(d)  # should print a COM object, not raise
+print(d)            # should print a COM object, not raise
+print(d.Version)    # e.g. (2, 9, 242, 0) — must be 2.8 or later
 ```
 
-If `Dispatch` raises `pywintypes.com_error` with `Invalid class string`, Distiller is not installed or its COM registration is broken — reinstall or re-register (`regsvr32` on the relevant DLLs).
+If `Dispatch` raises `pywintypes.com_error` with `Invalid class string`, Distiller is not installed or its COM registration is broken — reinstall or re-register (`regsvr32` on the relevant DLLs). If it succeeds but the version is below 2.8, see [Version requirement](#version-requirement).
 
 ---
 
@@ -146,7 +189,7 @@ Each linked to its section in the API reference:
 
 ### 1. Late binding has no enum access
 
-Constants like `mdroDataSourceFormatAnalyst` or `mdroPeakListFormatMGF` are **enum values, not exported symbols**. With `Dispatch` you must pass the integer directly. Look them up in `<WORKSPACE>/SDK/inc/mdro_api_i.h` (e.g. `mdroDataSourceFormat_e`, `mdroPeakListFormat_e`, `mdroUnits_e`, `mdroScanClass_e`). Values have drifted slightly between Distiller versions — always check the header shipped with your SDK.
+Constants like `mdroDataSourceFormatAnalyst` or `mdroPeakListFormatMGF` are **enum values, not exported symbols**. With `Dispatch` you must pass the integer directly. Look them up in `<WORKSPACE>/SDK/inc/mdro_api_i.h` (e.g. `mdroDataSourceFormat_e`, `mdroPeakListFormat_e`, `mdroUnits_e`, `mdroScanClass_e`). Values have drifted slightly between Distiller versions — always check the header shipped with your SDK. The values used here are the 2.8+ ones; on a pre-2.8 install they may be wrong (another reason for the [version requirement](#version-requirement)).
 
 ### 2. Don't `time.sleep()` while waiting on peak detection
 

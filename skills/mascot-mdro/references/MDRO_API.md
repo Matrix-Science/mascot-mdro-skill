@@ -30,6 +30,14 @@ spec = win32com.client.Dispatch("MDRO.DataSourceSpec")
 
 Inside a deployed report script, `win32com` is available because Distiller's embedded Python ships with pywin32. For ad-hoc Python work outside Distiller, install pywin32 in your interpreter (`pip install pywin32`).
 
+**Minimum version — Distiller 2.8.** Everything below is written against 2.8 and later. `Distiller.Version` is a property returning a `(major, minor, build, revision)` tuple, so the check is one line:
+
+```python
+assert tuple(distiller.Version)[:2] >= (2, 8), f"Distiller {distiller.Version} — 2.8 or later required"
+```
+
+Licensed users can update to 2.8 free of charge; 3.0 and above is a separate licence question for Matrix Science (https://www.matrixscience.com/distiller.html). See SKILL.md § Version requirement.
+
 ### Key ProgIDs
 
 | ProgID | Object | Purpose |
@@ -267,6 +275,7 @@ DataSourceCollection            -- manages open data source files
                  +- Spectrum    -- m/z + intensity points
 
 Distiller                       -- main API entry point
+  +- Version                    -- (major, minor, build, revision) tuple; must be >= (2, 8)
   +- ProcessingOptions          -- peak-detection settings
   |    +- TimeDomainOptions
   |    +- MSProcessingOptions
@@ -290,6 +299,8 @@ FileIOStream / StringVectorIOStream  -- destination streams
 ## Versioned interfaces
 
 Almost every interface has multiple versioned forms (`IDistiller`, `IDistiller2`, `IDistiller3`, `IDistiller4`, etc.). Newer versions add methods; older ones still work. With `win32com.client.Dispatch` (late binding), the dispatch object exposes the **latest** version's members transparently — you don't need to QI to a specific interface version. With early binding (e.g. via `EnsureDispatch`), select the highest version available.
+
+Which interface versions exist at all depends on the Distiller release — a reason the skill requires 2.8 or later. Interface version numbers (`IDistiller4`) are unrelated to the product version reported by `Distiller.Version`.
 
 ---
 
