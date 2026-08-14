@@ -213,6 +213,10 @@ Every MDRO interface exists in multiple versioned forms (`IDistiller`, `IDistill
 
 Distiller and its COM engine are Windows-only. There is no MDRO on macOS or Linux. Build pipelines that drive MDRO must run on a Windows host with Distiller installed (see BATCH_TESTING.md in the `mascot-distiller` skill for MDXE-driven CI notes).
 
+### 6. `DataSourceSpec.Sample` is required for every vendor — including Thermo `.raw`
+
+`dsc.Open2(spec)` raises `DISP_E_EXCEPTION` "The data source specification is incomplete. Check that all required information has been supplied." (-2147219405) when `spec.Sample` is unset — even for single-sample Thermo `.raw` files where a sample number seems meaningless. Always set `spec.Sample = 1` alongside `Format` and `Path`, and prefer an absolute `Path`. (Observed on MDRO 2.9.242.0 with Q Exactive `.raw`: a batch conversion failed identically on every file until Sample was set.)
+
 ---
 
 ## Reference files
