@@ -1,8 +1,8 @@
 # Mascot Distiller SDK (MDRO) Skill
 
-**Version:** 1.0.0 &nbsp;|&nbsp; **License:** Apache-2.0
+**Version:** 1.1.0 &nbsp;|&nbsp; **License:** Apache-2.0
 
-An Agent Skill that teaches AI coding assistants how to drive the **Mascot Distiller SDK (MDRO)** — the COM API that ships with Mascot Distiller for raw vendor data access, peak detection, TIC/spectrum generation, and peak list export (MGF/DTA/PKL).
+An Agent Skill that teaches AI coding assistants how to drive the **Mascot Distiller SDK (MDRO)** — the COM API that ships with Mascot Distiller for raw vendor data access, peak detection, TIC/spectrum generation, and peak list export (MGF/DTA/mzData).
 
 The skill itself is just markdown — `skills/mascot-mdro/SKILL.md` plus reference files under `skills/mascot-mdro/`. It does not contain or redistribute the licensed SDK.
 
@@ -10,11 +10,13 @@ The skill itself is just markdown — `skills/mascot-mdro/SKILL.md` plus referen
 
 ## What it covers
 
-- The peak-list workflow end to end: open a data source, filter scans, run peak detection asynchronously, export MGF/DTA/PKL
+- The peak-list workflow end to end: open a data source, filter scans, run peak detection asynchronously, export MGF/DTA/mzData
 - Reading raw data directly — TICs, arbitrary XICs at any m/z, and single-scan spectra that no precomputed quantitation covers
 - Customising `ProcessingOptions` (including the snapshot/write-back pattern) and saving or restoring `.opt` files
 - Async progress and log events, and how to wait on them without starving the COM message pump
 - Using MDRO from inside a custom Distiller report, bridged with `msparser` search results
+- Loading `.opt` processing-option presets (engine defaults are not the GUI defaults), checking for silent peak-picking failures, and the MGF 500-peak cap
+- Pointers to Distiller's command line for peak lists without an SDK licence (covered by the `mascot-distiller` skill)
 - Path discovery for the Distiller install and SDK workspace, a Distiller version check (2.8+), plus the gotchas that bite first (late-binding enums, versioned interfaces)
 
 ## Prerequisites
@@ -82,7 +84,7 @@ Once installed, just ask in plain language. Examples:
 
 - *"Convert this folder of .wiff files into MGF peak lists ready for searching."*
 - *"Extract an XIC at m/z 785.42 from this raw file and plot it."*
-- *"Re-run peak detection with a minimum MS/MS peak count of 5 and export to PKL."*
+- *"Re-run peak detection with a minimum MS/MS peak count of 5 and export to DTA."*
 - *"Pull the spectrum for scan 4821 out of this .raw file as m/z + intensity arrays."*
 
 ## Repo layout

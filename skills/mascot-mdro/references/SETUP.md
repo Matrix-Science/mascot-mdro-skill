@@ -171,17 +171,17 @@ Then add to `MEMORY.md`:
 
 ## 6. MDRO SDK files
 
-Everything you need for MDRO lives under `<WORKSPACE>/SDK/`:
+Everything you need for MDRO ships with Distiller under `<DISTILLER_INSTALL>\SDK\` (verified on 2.9.242: `SDK\inc\` + `SDK\sdk_guide.chm`). Older setups also kept a copy under `<WORKSPACE>/SDK/` — prefer the installed one, which matches the running engine:
 
 | File / subdirectory | Purpose |
 |---------------------|---------|
 | `SDK/sdk_guide.chm` | Shipped SDK guide (HTML Help). Open with `hh.exe sdk_guide.chm`. Authoritative tutorial and method-by-method reference. |
 | `SDK/inc/mdro_api.tlb` / `mdro_api_i.h` | Main MDRO COM interfaces — IDL typelib + C/IDL header |
-| `SDK/inc/mdro_itf_defs.h` | Authoritative numeric values for enums (`mdroDataSourceFormat_e`, `mdroPeakListFormat_e`, `mdroUnits_e`, `mdroScanClass_e`). Values have drifted between Distiller versions — always check the header shipped with your SDK, not an older copy. |
+| `SDK/inc/mdro_itf_defs.h` | Interface definitions. The numeric enum values (`mdroDataSourceFormat_e`, `mdroPeakListFormat_e`, `mdroProcessingStatus_e`, `mdroScanClass_e`, …) are in `mdro_api_i.h`. Values have drifted between Distiller versions — always check the header installed with the running Distiller, not an older copy. |
 | `SDK/inc/mdro_props.tlb` / `mdro_props_i.h` | Property pages (in-process UI dialogs) |
 | `SDK/inc/stream_objs_api.tlb` / `stream_objs_api_i.h` | File and string-vector I/O streams (for peak-list export) |
 
-The same `.chm` is also installed alongside Distiller at `<DISTILLER_INSTALL>/SDK/sdk_guide.chm` — either copy is authoritative.
+Processing-options presets (`.opt`, XML; schema `<DISTILLER_INSTALL>\mdro_proc_opts_1.xsd`) live in `C:\ProgramData\Matrix Science\Mascot Distiller\processing options\` — load one with `ProcessingOptions.LoadFromFile` before peak picking (SKILL.md Gotcha 7).
 
 The MDRO COM classes themselves (`MDRO.Distiller`, `MDRO.DataSourceCollection`, etc.) are registered automatically when Distiller is installed; there is no separate MDRO install step. If `win32com.client.Dispatch("MDRO.Distiller")` fails with `Invalid class string`, the registration is broken — reinstall Distiller or re-register the relevant DLLs with `regsvr32`.
 

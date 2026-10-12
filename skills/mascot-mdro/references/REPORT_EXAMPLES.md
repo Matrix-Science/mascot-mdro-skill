@@ -29,9 +29,8 @@ target_mz = (calc_mr + charge * 1.007276) / charge   # protonated m/z
 match_rt  = float(pep_sum.getQuery(query).getRetentionTimes())  # seconds
 
 # --- MDRO side: open the raw file the search ran on ---
-mdroDataSourceFormatXcalibur = 4   # check mdro_api_i.h for your version
-mdroUnitsSeconds             = 0
-mdroAggregationSum           = 0   # check mdroAggregationMethod_e
+mdroDataSourceFormatXcalibur = 4   # mdro_api_i.h, 2.9.242
+mdroUnitsSeconds             = 3   # mdroUnits_e: 0=ScanNumber 1=us 2=ms 3=s 4=min 5=h
 
 dsc  = win32com.client.Dispatch("MDRO.DataSourceCollection")
 spec = win32com.client.Dispatch("MDRO.DataSourceSpec")
@@ -42,7 +41,7 @@ ds = dsc.Open2(spec)
 
 # Restrict to a +/- 60 second window around the matched scan
 all_scans = dsc.Scans
-scans = all_scans.SubsetByTime(match_rt - 60.0, match_rt + 60.0)
+scans = all_scans.SubsetByTime(match_rt - 60.0, match_rt + 60.0, mdroUnitsSeconds)  # IScanCollection3: (min, max, units)
 
 # Filter to MS1 only (precursor scans, not MS/MS)
 mdroScanClassMS    = 0
@@ -53,21 +52,18 @@ filter_coll = win32com.client.Dispatch("MDRO.ScanTypeCollection")
 filter_coll.Add(ms1_filter)
 scans = scans.SubsetByScanType(filter_coll)
 
-# Build a narrow-m/z TIC = your raw XIC
+# MDRO has no m/z-window chromatogram: ITICOptions only has XUnits, Style and
+# AlwaysInterpolateCalibScans, so CreateTIC2 always gives the whole-scan TIC.
+# Build the XIC yourself from one spectrum per MS1 scan (sketch - not yet run;
+# Scan.Time is a parameterised property, so check how pywin32 exposes it).
 distiller = win32com.client.Dispatch("MDRO.Distiller")
-tic_opts  = win32com.client.Dispatch("MDRO.TICOptions")
-tic_opts.XUnits     = mdroUnitsSeconds
-tic_opts.MZRangeLow  = target_mz - 0.02   # +/- 20 mDa window
-tic_opts.MZRangeHigh = target_mz + 0.02
-tic_opts.AggregationMethod = mdroAggregationSum
-
-xic = distiller.CreateTIC2(scans, tic_opts)
-
-# Read back the points
+lo, hi = target_mz - 0.02, target_mz + 0.02   # +/- 20 mDa window
 points = []
-for i in range(xic.Count):
-    rt, intensity, scan_id = xic.GetXYId(i)
-    points.append((rt, scan_id, intensity))
+for i in range(scans.Count):
+    scan = scans.Item(i)
+    sp = distiller.CreateSpectrum(scans.Subset(scan.Id, scan.Id))
+    inten = sum(y for x, y in (sp.GetXY(k) for k in range(sp.Count)) if lo <= x <= hi)
+    points.append((scan.Time(mdroUnitsSeconds), scan.Id, inten))
 ```
 
 ### Why this is useful
@@ -79,11 +75,12 @@ for i in range(xic.Count):
 ### Gotchas
 
 - **Licence required** — as noted above, MDRO is a paid SDK. An otherwise-working report will fail cleanly at the first `Dispatch("MDRO.…")` on a machine without the licence. Detect and fall back if you want to ship a single binary that degrades gracefully.
-- **Property names on `TICOptions`** vary slightly between MDRO versions (`MZRangeLow`/`Hi` vs `MZRangeMin`/`Max`). Check `mdro_api_i.h` in your SDK install.
+- **No m/z range on `TICOptions`** — `ITICOptions` exposes only `XUnits`, `Style` and `AlwaysInterpolateCalibScans` (2.9.242 header). Any example setting `MZRangeLow`/`MZRangeHigh` or `AggregationMethod` on it is wrong.
+- **msparser and MDRO in one process** — a standalone Python process that has imported `msparser` breaks later `CreatePeakLists`/`CreateSpectrum` calls (SKILL.md, Known engine quirks 4). If that bites, do the msparser half in a subprocess and pass the target m/z/RT across.
 - **`SubsetByScanType` requires a `ScanTypeCollection`**, not a single `ScanType`. Easy to miss.
 - **Raw file paths** in the properties CSV (`RawFile.Input1`) are absolute paths to the raw vendor file, not the `.dat`. They must be readable by the user running Distiller.
 - **MDRO is COM** — `pywin32` must be importable. It ships with Distiller's embedded Python; for ad-hoc testing outside Distiller, `pip install pywin32`.
-- **Mass arithmetic**: protonated m/z is `(Mr + z * 1.007276) / z`. The `1.007276` is the mass of a proton (not 1.00794, which is hydrogen). Subtract a neutron (`1.00867`) for negative mode.
+- **Mass arithmetic**: protonated m/z is `(Mr + z * 1.007276) / z`. The `1.007276` is the mass of a proton (not 1.00794, which is hydrogen). For negative mode use `(Mr - z * 1.007276) / z`.
 
 ### See also
 
