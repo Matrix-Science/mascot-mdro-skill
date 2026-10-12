@@ -233,13 +233,13 @@ Distiller and its COM engine are Windows-only. There is no MDRO on macOS or Linu
 
 ### 7. Engine defaults ≠ GUI defaults — load a `.opt` before any peak-list export
 
-A freshly dispatched `MDRO.Distiller` does **not** pick up the per-vendor `.opt` the GUI/Daemon would use; it runs on built-in engine defaults, which can be badly wrong for MS/MS export. Measured on a Thermo top-down `.raw` (2.9.242): engine defaults gave 3,712 MGF blocks with a median of 37 peaks; `LoadFromFile("extract_msn.ThermoXcalibur.opt")` gave 4,323 blocks (every MS/MS scan) with a median of 500 peaks, and nearly doubled the Mascot PSMs (235 → 442). **Always `opts.LoadFromFile(<preset>.opt)` + write-back before `CreatePeakLists`**, then print the `MS`/`MSMS` fields you depend on rather than trusting a remembered default (a fresh 2.9.242 engine reported `MSMS.MaxPeakCharge=2`, `MSMS.MinPeakCount=10`).
+A freshly dispatched `MDRO.Distiller` does **not** pick up the per-vendor `.opt` the GUI/Daemon would use; it runs on built-in engine defaults, which can be badly wrong for MS/MS export. Measured on a Thermo top-down `.raw` (2.9.242): engine defaults gave 3,712 MGF blocks with a median of 37 peaks; `LoadFromFile("extract_msn.ThermoXcalibur.opt")` gave 4,323 blocks (every MS/MS scan) with a median of 500 peaks, and nearly doubled the Mascot PSMs (235 → 442). **Always `opts.LoadFromFile(<preset>.opt)` + write-back before `CreatePeakLists`**, then print the `MS`/`MSMS` fields you depend on rather than trusting a remembered default.
 
-Presets live in `C:\ProgramData\Matrix Science\Mascot Distiller\processing options\`: the shipped ones are `default.<Vendor>.opt` (what the GUI uses) and `extract_msn.<Vendor>.opt`; anything else there is site-made. Preset choice matters as much as loading one — see [MDRO_API.md: Engine defaults ≠ GUI defaults](references/MDRO_API.md#engine-defaults--gui-defaults-ms1-and-msms).
+Presets live in `C:\ProgramData\Matrix Science\Mascot Distiller\processing options\`. Shipped presets include `default.<Vendor>.opt` (the per-vendor defaults), `extract_msn.*`, `prof_prof.*`, `vendor.*`, `qtrap*`, `reporter.*`, `LCQ_*`, `CID_HCD_reporter`, `MS3_reporter` and `m@ldi`; others may be site-made — check the install. Preset choice matters as much as loading one — see [MDRO_API.md: Engine defaults ≠ GUI defaults](references/MDRO_API.md#engine-defaults--gui-defaults-ms1-and-msms).
 
 ### 8. `CreatePeakLists` fails silently
 
-On error, `WaitForResults()` returns normally with `Status == 3` (`mdroProcessingStatusError`) and `Count == 0` — no exception. Always assert `Status == 1` and `Count > 0`. After one failure, later calls in the same process may return status 3 immediately; retry in a fresh process.
+On error, `WaitForResults()` returns normally with `Status == 3` (`mdroProcessingStatusError`) and `Count == 0` — no exception. Always assert `Status == 1` and `Count > 0`. After one failure, later calls in the same process may return status 3 immediately, so retry in a fresh process (inferred, not tested).
 
 ### 9. One MS/MS scan in the collection switches the run to MS/MS peak lists
 
@@ -255,7 +255,7 @@ On error, `WaitForResults()` returns normally with `Status == 3` (`mdroProcessin
 
 ### 12. Concatenating per-file MGFs — make TITLEs unique
 
-Single-spectrum sources (e.g. Bruker MALDI LIFT `fid`, opened directly as `mdroDataSourceFormatBrukerTof = 5`) all export as `TITLE=...: Scan 1 (rt=0)`. Prefix each TITLE with the spot/file name before merging into one search file, or matches can't be traced back. Check `precursorDefaultCharges` too — a preset with `2 3` writes `CHARGE=2+/3+`, wrong for MALDI.
+Single-spectrum sources (e.g. Bruker MALDI LIFT `fid`, opened directly as `mdroDataSourceFormatBrukerTof = 5`) all export as `TITLE=...: Scan 1 (rt=0)`. Prefix each TITLE with the spot/file name before merging into one search file, or matches can't be traced back. Check `precursorDefaultCharges` too — with `2 3` each MALDI spot is written as two blocks (`CHARGE=2+` and `CHARGE=3+`), wrong for MALDI's 1+ ions.
 
 ### 13. Peak picking is not exactly repeatable
 
@@ -288,15 +288,13 @@ distiller.ProcessingOptions = opts # write-back is required (Gotcha #3)
 
 Sample numbers: with these two tweaks on a Q Exactive HF-X DIA file (1848 MS1 scans, ~113k deisotoped peaks), `IPeak.Charge` gave `1+:19.7% 2+:38.4% 3+:25.5% 4+:7.3% 5+:3.0% 6+:6.2%` — typical tryptic envelope.
 
-### 4. Don't `import msparser` in the same process as MDRO
+### 4. Keep `msparser` and MDRO in separate processes
 
-Loading `msparser` into the **same Python process** address space as MDRO **silently breaks** subsequent `Distiller.CreatePeakLists()` and `Distiller.CreateSpectrum()` — the COM calls raise `DISP_E_EXCEPTION` ("The parameter is incorrect"). Symptom: peak detection that worked moments ago returns no points after an `import msparser`. Suspected cause: msparser's DLL load calls `CoInitializeEx(MTA)` which clashes with MDRO's STA.
-
-**Workaround: run any msparser-using code in a separate Python subprocess** and pass results across (JSON over stdout / a temp file). Don't try to share one process. Worth filing a Matrix Science support ticket; possibly fixable by adjusting msparser's CoInit behaviour.
+Observed once (2.9.241.5): after `import msparser` in a Python process driving MDRO, `CreatePeakLists`/`CreateSpectrum` failed; not reproduced, cause unconfirmed. Keep msparser and MDRO in separate processes. Pass results between them as JSON over stdout or a temp file.
 
 ### 5. `ScansExtendedInfo(min, max, filter)` — request narrow ranges (Thermo)
 
-On the Thermo (`Xcalibur`) provider, `ds.ScansExtendedInfo(min, max, mdroAllExtInfo)` for a full scan-id range errors `0xc8020008` ("Unable to retrieve the extended info for scan range…"). **Workaround: request single-scan ranges** in a generator pattern — `ScansExtendedInfo(sid, sid, mdroAllExtInfo)` per scan, sub-sample if you only need a population estimate (e.g. random 500 of 138k MS2 scans for an isolation-purity histogram). Whether other vendor providers have the same bug is unverified — code defensively.
+On the Thermo (`Xcalibur`) provider, `ds.ScansExtendedInfo(min, max, mdroScanExtendedInfoAll)` for a full scan-id range errors `0xc8020008` ("Unable to retrieve the extended info for scan range…"). **Workaround: request single-scan ranges** in a generator pattern — `ScansExtendedInfo(sid, sid, mdroScanExtendedInfoAll)` per scan, sub-sample if you only need a population estimate (e.g. random 500 of 138k MS2 scans for an isolation-purity histogram). Whether other vendor providers have the same bug is unverified — code defensively.
 
 ### 6. Thermo `IScanExtInfo.OtherInfo` doesn't expose ion-injection-time
 
@@ -305,7 +303,7 @@ On a centroided Thermo `.raw` (Q Exactive HF-X DIA), an MS2 `IScanExtInfo` carri
 ### 7. Smaller engine notes
 
 - **`IPeak.Charge` is on the base `IPeak` interface** (line ~9145 in `mdro_api_i.h`, declared as `short`). No need to `QueryInterface` to `IPeak2`/`IPeak3` just to read the deconvolved charge.
-- **`mdroDataSourceFormat_e` integers can drift between Distiller versions** (per a comment in the header itself). Full table for 2.9.242 in [MDRO_API.md](references/MDRO_API.md#data-source-formats-mdrodatasourceformat_e) (e.g. `Xcalibur`=4, `BrukerTof`=5, `MzXML`=10, `MzML`=14) — pin from `mdro_api_i.h` (or `comtypes.client.GetModule` the typelib for real symbols) for whichever vendors you actually target.
+- **`mdroDataSourceFormat_e` integers have changed between Distiller releases**. Full table for 2.9.242 in [MDRO_API.md](references/MDRO_API.md#data-source-formats-mdrodatasourceformat_e) (e.g. `Xcalibur`=4, `BrukerTof`=5, `MzXML`=10, `MzML`=14) — pin from `mdro_api_i.h` (or `comtypes.client.GetModule` the typelib for real symbols) for whichever vendors you actually target.
 - **`IDataSourceObj.DataAcquisitionComplete`** reads `True` on a completed Thermo `.raw`. Whether each vendor provider sets it correctly *mid*-acquisition is unverified — treat as one advisory signal; combine with a filesystem-stability heuristic (Thermo single-`.raw` + exclusive-open; Bruker/Agilent `.d` terminal files; Sciex `.wiff`+`.wiff.scan` pair stable; Waters `.raw` directory `_FUNC*.DAT` stable).
 - **"Win32 exception releasing IUnknown"** lines on process exit when many COM refs are released back-to-back are harmless `pywin32` GC noise — the process exits cleanly. Don't mistake them for a hang or leak.
 

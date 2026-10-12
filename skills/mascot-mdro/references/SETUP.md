@@ -177,7 +177,7 @@ Everything you need for MDRO ships with Distiller under `<DISTILLER_INSTALL>\SDK
 |---------------------|---------|
 | `SDK/sdk_guide.chm` | Shipped SDK guide (HTML Help). Open with `hh.exe sdk_guide.chm`. Authoritative tutorial and method-by-method reference. |
 | `SDK/inc/mdro_api.tlb` / `mdro_api_i.h` | Main MDRO COM interfaces — IDL typelib + C/IDL header |
-| `SDK/inc/mdro_itf_defs.h` | Interface definitions. The numeric enum values (`mdroDataSourceFormat_e`, `mdroPeakListFormat_e`, `mdroProcessingStatus_e`, `mdroScanClass_e`, …) are in `mdro_api_i.h`. Values have drifted between Distiller versions — always check the header installed with the running Distiller, not an older copy. |
+| `SDK/inc/mdro_itf_defs.h` | HRESULT error-code `#define`s (`E_ITF_CMN_*` etc.) — look up an error code here. The numeric enum values (`mdroDataSourceFormat_e`, `mdroPeakListFormat_e`, `mdroProcessingStatus_e`, `mdroScanClass_e`, …) are in `mdro_api_i.h`. Values have drifted between Distiller versions — always check the header installed with the running Distiller, not an older copy. |
 | `SDK/inc/mdro_props.tlb` / `mdro_props_i.h` | Property pages (in-process UI dialogs) |
 | `SDK/inc/stream_objs_api.tlb` / `stream_objs_api_i.h` | File and string-vector I/O streams (for peak-list export) |
 

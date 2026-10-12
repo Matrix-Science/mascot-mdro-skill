@@ -13,11 +13,14 @@ The XIC extracted via `component.getXic()` on the msparser side is **only** the 
 This combines both SDKs:
 
 - **msparser** (from the `mascot-distiller` skill) identifies the peptide and gives you the calculated m/z + matched scan retention time
-- **MDRO** (this skill) opens the raw file, builds a TIC over a narrow m/z window, and returns the trace
+- **MDRO** (this skill) opens the raw file, pulls one spectrum per MS1 scan in the RT window, and sums the intensity inside the m/z window
 
 ### Pattern
 
 ```python
+# Caveat: shown in one script for readability. Observed once (2.9.241.5): after `import msparser` in a Python process driving MDRO, `CreatePeakLists`/`CreateSpectrum` failed; not reproduced, cause unconfirmed. Keep msparser and MDRO in separate processes.
+# In a standalone script, run the msparser half in a subprocess and pass
+# target_mz / match_rt across.
 import msparser
 import win32com.client
 
@@ -76,7 +79,7 @@ for i in range(scans.Count):
 
 - **Licence required** — as noted above, MDRO is a paid SDK. An otherwise-working report will fail cleanly at the first `Dispatch("MDRO.…")` on a machine without the licence. Detect and fall back if you want to ship a single binary that degrades gracefully.
 - **No m/z range on `TICOptions`** — `ITICOptions` exposes only `XUnits`, `Style` and `AlwaysInterpolateCalibScans` (2.9.242 header). Any example setting `MZRangeLow`/`MZRangeHigh` or `AggregationMethod` on it is wrong.
-- **msparser and MDRO in one process** — a standalone Python process that has imported `msparser` breaks later `CreatePeakLists`/`CreateSpectrum` calls (SKILL.md, Known engine quirks 4). If that bites, do the msparser half in a subprocess and pass the target m/z/RT across.
+- **msparser and MDRO in one process** — Observed once (2.9.241.5): after `import msparser` in a Python process driving MDRO, `CreatePeakLists`/`CreateSpectrum` failed; not reproduced, cause unconfirmed. Keep msparser and MDRO in separate processes.
 - **`SubsetByScanType` requires a `ScanTypeCollection`**, not a single `ScanType`. Easy to miss.
 - **Raw file paths** in the properties CSV (`RawFile.Input1`) are absolute paths to the raw vendor file, not the `.dat`. They must be readable by the user running Distiller.
 - **MDRO is COM** — `pywin32` must be importable. It ships with Distiller's embedded Python; for ad-hoc testing outside Distiller, `pip install pywin32`.

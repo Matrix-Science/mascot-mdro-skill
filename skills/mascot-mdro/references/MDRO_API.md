@@ -236,7 +236,7 @@ distiller.ProcessingOptions = proc_opts   # a load is also only live after write
 
 Sub-objects such as `proc_opts.PeakSelection` cannot be replaced — modify them in place, then write the whole `ProcessingOptions` back.
 
-The `MDRO.ProcOptsSheet` object brings up Distiller's standard processing-options dialog if you want the user to edit interactively. Inside an unattended report, just script the values you want.
+The `MDROProps.ProcOptsSheet` object brings up Distiller's standard processing-options dialog if you want the user to edit interactively. Inside an unattended report, just script the values you want.
 
 ### Engine defaults ≠ GUI defaults (MS1 and MS/MS)
 
@@ -247,10 +247,10 @@ The `MDRO.ProcOptsSheet` object brings up Distiller's standard processing-option
 | Engine defaults (nothing loaded) | 3,712 (611 MS/MS scans dropped) | 37 | 16 s | 235 |
 | `extract_msn.ThermoXcalibur.opt` | 4,323 (every MS/MS scan) | 500 (export cap) | 0.7 s | 442 |
 
-Presets are in `C:\ProgramData\Matrix Science\Mascot Distiller\processing options\`. Shipped: `default.<Vendor>.opt` (`.dia.opt` variants for DIA) and `extract_msn.<Vendor>.opt`; any other file there was made on site — read it before trusting it. Preset choice changes results as much as loading one:
+Presets live in `C:\ProgramData\Matrix Science\Mascot Distiller\processing options\`. Shipped presets include `default.<Vendor>.opt` (the per-vendor defaults; `.dia.opt` variants for DIA), `extract_msn.*`, `prof_prof.*`, `vendor.*`, `qtrap*`, `reporter.*`, `LCQ_*`, `CID_HCD_reporter`, `MS3_reporter` and `m@ldi`; others may be site-made — check the install. Read a preset before trusting it. Preset choice changes results as much as loading one:
 
 - `extract_msn.*` — MS/MS `maxPeakCharge=2`, `minPeakCount=10`, S/N 1, **no precursor charge determination** (on top-down data its precursors agreed with TopFD for only 6.5% of spectra). Fast, deep, but fragments above 2+ stay at observed m/z.
-- A site-made top-down preset with MS/MS `maxPeakCharge=10` and `filteringMinSNRatio=0.01` took 287 s instead of 0.7 s and emitted ~190 masses/spectrum (more noise), but decharged the fragments and raised PSMs further (442 → 758). Its `.sum` twin differed only in `summingType` 0 → 1 (sum MS/MS scans sharing a precursor).
+- A site-made top-down preset with MS/MS `maxPeakCharge=10` and `filteringMinSNRatio=0.01` took 287 s instead of 0.7 s and gave a median of 198 peaks per spectrum (more noise), but decharged the fragments: PSMs rose 640 → 758 (the earlier 442 → 640 came from better precursor determination, not the preset). Its `.sum` twin differed only in `summingType` 0 → 1 (sum MS/MS scans sharing a precursor).
 
 After loading, print the fields you depend on — don't trust a remembered default:
 
@@ -334,7 +334,7 @@ spectrum = distiller.CreateSpectrum(single_scan)
 
 ## Data source formats (`mdroDataSourceFormat_e`)
 
-From `mdro_api_i.h` (2.9.242). The header warns values can change between releases — re-check on other versions:
+From `mdro_api_i.h` (2.9.242). Values have changed between releases — re-check on other versions:
 
 | Value | Name | Data |
 |---|---|---|
@@ -404,7 +404,8 @@ Empirically established on **MDRO 2.9.241.5** (`Distiller.Version → (2, 9, 241
 ### `ScansExtendedInfo` full-range errors on Thermo — request narrow ranges
 
 ```
-ds.ScansExtendedInfo(min_id, max_id, mdroAllExtInfo)   # full range → 0xc8020008
+mdroScanExtendedInfoAll = -1   # mdroScanExtendedInfo_e (AnalyserType=1, DissociationType=2, Other=4)
+ds.ScansExtendedInfo(min_id, max_id, mdroScanExtendedInfoAll)   # full range → 0xc8020008
 ```
 
 On the Thermo (`Xcalibur`) provider, the full-range call errors `0xc8020008` ("Unable to retrieve the extended info for scan range…"). **Workaround: single-scan ranges** in a generator pattern. Sub-sample if you only need a population estimate (random N of M MS2 scans for an isolation-purity histogram, etc.).
@@ -418,7 +419,7 @@ def iter_ms2_extinfo(ds, scans, sample=None, rng_seed=0):
         ms2_ids = ms2_ids[:sample]
     for sid in ms2_ids:
         try:
-            ei = ds.ScansExtendedInfo(sid, sid, mdroAllExtInfo).Item(0)
+            ei = ds.ScansExtendedInfo(sid, sid, mdroScanExtendedInfoAll).Item(0)
         except Exception:
             ei = None
         yield sid, ei
@@ -431,7 +432,7 @@ Whether other vendor providers have the same full-range bug is unverified — co
 On a centroided Thermo `.raw`, an MS2 `IScanExtInfo` carries `OtherInfoCount == 2` and the only labelled items are `"SCAN-FILTER"` and `"ISOLATION-WIDTH"`. `OtherInfoItemByLabel("Ion Injection Time (ms)")` and every plausible variant returns `None`.
 
 ```python
-ei = ds.ScansExtendedInfo(sid, sid, mdroAllExtInfo).Item(0)
+ei = ds.ScansExtendedInfo(sid, sid, mdroScanExtendedInfoAll).Item(0)
 labels = [ei.OtherInfoItem(k)[0] for k in range(ei.OtherInfoCount)]
 # Thermo HF-X DIA: labels == ["SCAN-FILTER", "ISOLATION-WIDTH"]
 # No "Ion Injection Time (ms)" / "ITMSMSInjectionTime" / etc.
@@ -439,11 +440,9 @@ labels = [ei.OtherInfoItem(k)[0] for k in range(ei.OtherInfoCount)]
 
 For ion-injection-time on Thermo, **MDRO is not the route** — go via Thermo's RawFileReader directly. Other vendors' providers may differ; verify per vendor.
 
-### Don't `import msparser` in the same process as MDRO
+### Keep `msparser` and MDRO in separate processes
 
-Loading `msparser` into the **same Python process** address space as MDRO **silently breaks** subsequent `Distiller.CreatePeakLists()` and `Distiller.CreateSpectrum()` (`DISP_E_EXCEPTION`, "The parameter is incorrect"). Symptom: peak detection that worked moments ago returns no points after `import msparser`. Suspected cause: msparser's DLL load calls `CoInitializeEx(MTA)`, clashing with MDRO's STA.
-
-**Workaround: run msparser-using code in a separate Python subprocess** and pass results across (e.g. JSON over stdout, or a temp file). Don't try to share one process. Worth filing a Matrix Science support ticket.
+Observed once (2.9.241.5): after `import msparser` in a Python process driving MDRO, `CreatePeakLists`/`CreateSpectrum` failed; not reproduced, cause unconfirmed. Keep msparser and MDRO in separate processes. Pass results between them as JSON over stdout or a temp file.
 
 ### `DataAcquisitionComplete` — advisory, combine with FS heuristic
 
