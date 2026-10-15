@@ -144,6 +144,20 @@ spec.Params.IsCentroided = False
 ds = dsc.Open2(spec)
 ```
 
+### Opening a Waters MassLynx `.raw` directory
+
+A Waters `.raw` is a directory (`_extern.inf`, `_FUNC*.DAT` inside). `Path` is the directory; `Format` is `2` (`Masslynx`) or `15` (`MasslynxMSE`); `Sample = 1` is still required:
+
+```python
+spec = win32com.client.Dispatch("MDRO.DataSourceSpec")
+spec.Format = mdroDataSourceFormatMasslynx          # 2; 15 = MasslynxMSE
+spec.Path   = r"C:\data\Sample.raw"                   # the .raw DIRECTORY
+spec.Sample = 1
+ds = dsc.Open2(spec)       # may raise a COM error if lockspray correction is on and fails
+```
+
+Opening starts `mdro_ds_masslynx.exe`, which applies the lockspray (lock mass) correction configured in the shared `C:\ProgramData\Matrix Science\Mascot Distiller\lockspray.ini` (empty = disabled). The returned m/z values therefore depend on that file, and it is read at open time - see [LOCKSPRAY.md](LOCKSPRAY.md) for the format, how to write it, and the measured effect of the smoothing setting (2.9.242).
+
 ---
 
 ## Generating a TIC (Total Ion Chromatogram)

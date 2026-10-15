@@ -1,6 +1,6 @@
 # Mascot Distiller SDK (MDRO) Skill
 
-**Version:** 1.1.0 &nbsp;|&nbsp; **License:** Apache-2.0
+**Version:** 1.2.0 &nbsp;|&nbsp; **License:** Apache-2.0
 
 An Agent Skill that teaches AI coding assistants how to drive the **Mascot Distiller SDK (MDRO)** — the COM API that ships with Mascot Distiller for raw vendor data access, peak detection, TIC/spectrum generation, and peak list export (MGF/DTA/mzData).
 
@@ -16,6 +16,7 @@ The skill itself is just markdown — `skills/mascot-mdro/SKILL.md` plus referen
 - Async progress and log events, and how to wait on them without starving the COM message pump
 - Using MDRO from inside a custom Distiller report, bridged with `msparser` search results
 - Loading `.opt` processing-option presets (engine defaults are not the GUI defaults), checking for silent peak-picking failures, and the MGF 500-peak cap
+- Waters MassLynx data: opening `.raw` directories, and how the shared `lockspray.ini` (lock mass correction) changes the m/z values MDRO returns, with a PowerShell writer that uses Distiller's own settings class
 - Pointers to Distiller's command line for peak lists without an SDK licence (covered by the `mascot-distiller` skill)
 - Path discovery for the Distiller install and SDK workspace, a Distiller version check (2.8+), plus the gotchas that bite first (late-binding enums, versioned interfaces)
 
@@ -96,6 +97,8 @@ skills/mascot-mdro/
     MDRO_API.md                     # complete MDRO API reference — ProgIDs, peak-list
                                     #   workflow, TIC/spectrum, processing options,
                                     #   async events, data source formats, hierarchy
+    LOCKSPRAY.md                    # Waters lockspray.ini: format, how MDRO reads it,
+                                    #   writing it from PowerShell, measured effects
     REPORT_EXAMPLES.md              # using MDRO inside a custom Distiller report
     SETUP.md                        # path discovery: Distiller install, SDK workspace
 ```

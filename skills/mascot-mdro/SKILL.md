@@ -261,6 +261,10 @@ Single-spectrum sources (e.g. Bruker MALDI LIFT `fid`, opened directly as `mdroD
 
 Two runs of the same script and `.opt` on 195 MALDI LIFT spectra gave identical output for only ~half the spectra; the rest differed by small intensity changes and the odd extra/missing peak. Don't use byte-identical MGFs as a regression test; compare peak sets with a tolerance and keep the exact peak list that was searched.
 
+### 14. Waters MassLynx: lockspray correction comes from a shared `lockspray.ini`
+
+A Waters `.raw` is a directory: `spec.Format = 2` (`Masslynx`; `15` = `MasslynxMSE`), `spec.Path` = the directory, `spec.Sample = 1`. When MDRO opens it, the out-of-process data source `mdro_ds_masslynx.exe` reads `C:\ProgramData\Matrix Science\Mascot Distiller\lockspray.ini` - the file the GUI's Calibration > Lockspray dialog saves (`[Settings]`: `DisableLockspray`, `Lockmass` `;`-separated, `Delta`, `Lockfunction` 0 = auto, `Scans`, `SmoothType` -1 None / 0 Mean / 1 Median / 2 Savitzky-Golay; empty file = disabled). So an MDRO script silently gets whatever correction was last saved, and m/z values shift by ~13 ppm between disabled and enabled on the test file (2.9.242.22). Measured: the smoothing method changes the corrected m/z by under 1.5 ppm, and Savitzky-Golay can make `Open2` raise `Proxy-stub communication failure ... code 109` on some files rather than crash (try SmoothType None). The file is read at open time, so test each setting in a fresh process; back it up and restore it byte-for-byte. Format, PowerShell writer (`PurifierApi.dll` `LockSpraySettings.Save()`; preload `CommonTools`/`AlphaFS`, no `AssemblyResolve` handler) and the full measurements: [references/LOCKSPRAY.md](references/LOCKSPRAY.md).
+
 ---
 
 ## Known engine quirks (v2.9.241–2.9.242)
@@ -316,6 +320,7 @@ On a centroided Thermo `.raw` (Q Exactive HF-X DIA), an MS2 `IScanExtInfo` carri
 | [references/MDRO_API.md](references/MDRO_API.md) | Complete MDRO API reference — ProgIDs, peak-list workflow, TIC/spectrum, processing options, async events, data source formats, object hierarchy |
 | [references/REPORT_EXAMPLES.md](references/REPORT_EXAMPLES.md) | Worked example: using MDRO inside a custom Distiller report (raw XIC at an arbitrary m/z, bridging msparser + MDRO) |
 | [references/SETUP.md](references/SETUP.md) | Path discovery for `<DISTILLER_INSTALL>` and `<WORKSPACE>` (shared with the `mascot-distiller` skill) |
+| [references/LOCKSPRAY.md](references/LOCKSPRAY.md) | Waters lockspray correction: `lockspray.ini` format, how MDRO picks it up, opening MassLynx `.raw` directories, writing the file with `PurifierApi` from PowerShell, measured effect of smoothing and the Savitzky-Golay open failure (2.9.242) |
 
 External:
 
